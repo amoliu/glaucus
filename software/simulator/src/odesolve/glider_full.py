@@ -8,7 +8,7 @@ from pylab import *
 import numpy as np
  
 from scipy.integrate import ode
-from math import atan, asin, sin, cos
+from math import atan, asin, acos, sin, cos, tan
 
 J1 = 4.0
 J2 = 12.0
@@ -32,7 +32,7 @@ Minv = inv(M)
 
 rw0 = array([0.0,    0.0, 0.0 ])
 rb0 = array([0.0,    0.0, 0.0 ])
-rp0 = array([0.0,    0.0, 0.0 ])
+rp0 = array([0.0198, 0.00002, 0.05 ])
 
 KL0 = 0.0
 KL = 132.5
@@ -45,7 +45,7 @@ KML = -100.0
 KMN0 = 0.0
 KMN = -100.0
 KSF0 = 0.0
-KSF = 5.0
+KSF = 25.0
 
 KOmega1 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
@@ -54,19 +54,22 @@ KOmega2 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
                  [     0.0,      0.0,    -50.0]])
 
-q0_0 = 1
-q1_0 = 0
-q2_0 = 0
-q3_0 = 0
+phi = 0
+theta = 0#-22.9 * (pi/180)
+psi = 0
+q0_0 = cos(phi/2)*cos(theta/2)*cos(psi/2) + sin(phi/2)*sin(theta/2)*sin(psi/2)
+q1_0 = sin(phi/2)*cos(theta/2)*cos(psi/2) - cos(phi/2)*sin(theta/2)*sin(psi/2)
+q2_0 = cos(phi/2)*sin(theta/2)*cos(psi/2) + sin(phi/2)*cos(theta/2)*sin(psi/2)
+q3_0 = cos(phi/2)*cos(theta/2)*sin(psi/2) - sin(phi/2)*sin(theta/2)*cos(psi/2)
 x_0 = 0.0
 y_0 = 0.0
 z_0 = 0.0
 omega1_0 = 0.0
 omega2_0 = 0.0
 omega3_0 = 0.0
-v1_0 = 0.0
+v1_0 = 0#0.298
 v2_0 = 0.0
-v3_0 = 0.00
+v3_0 = 0#0.01
 rp1_0 = rp0[0]
 rp2_0 = rp0[1]
 rp3_0 = rp0[2]
@@ -85,7 +88,7 @@ vrb3_0 = 0.0
 vrw1_0 = 0.0
 vrw2_0 = 0.0
 vrw3_0 = 0.0
-mb_0 = 1.047
+mb_0 = 1.000
 
 def f_hydro(Vsq, alpha, beta):
     D = (KD0 + KD*alpha*alpha)*Vsq
@@ -159,10 +162,10 @@ def W_motor(t, yy):
     u4 = 0
 
     if down_glide:
-        rp1_set = 0.0#198
+        rp1_set = 0.0198
         mb_set = 1.047
     else:
-        rp1_set = -0.0#198
+        rp1_set = -0.0198
         mb_set = 0.953
 
     rp1_err = rp1 - rp1_set
@@ -228,7 +231,7 @@ def glider_full(t, yy):
     if Vsq != 0:
         beta = atan(v2 / sqrt(Vsq))
     else:
-        beta = pi / 2
+        beta = 0
 
     R11 = q0*q0 + q1*q1 - q2*q2 - q3*q3
     R12 = 2*(q1*q2 - q0*q3)
@@ -239,25 +242,12 @@ def glider_full(t, yy):
     R31 = 2*(q1*q3 - q0*q2)
     R32 = 2*(q2*q3 + q0*q1)
     R33 = q0*q0 - q1*q1 - q2*q2 + q3*q3
-#    R11 = cos(q2)*cos(q1)
-#    R21 = sin(q2)*cos(q1)
-#    R31 = -sin(q1)
-#    R12 = -sin(q2)*cos(q0) + cos(q2)*sin(q1)*sin(q0)
-#    R22 = cos(q2)*cos(q0) + sin(q0)*sin(q1)*sin(q2)
-#    R32 = cos(q1)*sin(q0)
-#    R13 = sin(q2)*sin(q0) + cos(q2)*cos(q0)*sin(q1)
-#    R23 = -cos(q2)*sin(q0) + sin(q1)*sin(q2)*cos(q0)
-#    R33 = cos(q1)*cos(q0)
 
     q = array([q0, q1, q2, q3])
-#    q = array([q0, q1, q2])
     dR = 0.5*array([[     0, -omega1, -omega2, -omega3],
                     [omega1,       0,  omega3, -omega2],
                     [omega2, -omega3,       0,  omega1],
                     [omega3,  omega2, -omega1,       0]])
-#    dR = 0.5*array([[     1, sin(q0)*tan(q1), cos(q0)*tan(q1)],
-#                    [     0,         cos(q0),        -sin(q0)],
-#                    [     0, sin(q0)/cos(q1), cos(q0)/cos(q1)]])
 
     R = array([[R11, R12, R13],
                [R21, R22, R23],
@@ -299,22 +289,19 @@ def glider_full(t, yy):
     F31 = Minv - dot(dot(hat(rw), Jinv), hat(rp))
     F32 = Minv - dot(dot(hat(rw), Jinv), hat(rb))
     F33 = Minv - dot(dot(hat(rw), Jinv), hat(rw)) + 1.0/Mw*identity(3)
-    F = array([[F11, F12, F13],
-               [F21, F22, F23],
-               [F31, F32, F33]])
 
-#    print "F:",F
-#    print "H:",H
-    H = inv(F)
-    H11 = H[0,0]
-    H12 = H[0,1]
-    H13 = H[0,2]
-    H21 = H[1,0]
-    H22 = H[1,1]
-    H23 = H[1,2]
-    H31 = H[2,0]
-    H32 = H[2,1]
-    H33 = H[2,2]
+    detF = inv(dot(F13, dot(F21, F32) - dot(F22, F31)) +
+               dot(F12, dot(F23, F31) - dot(F21, F33)) +
+               dot(F11, dot(F22, F33) - dot(F23, F32)))
+    H11 = dot(detF, dot(F22, F33) - dot(F23, F32))
+    H12 = dot(detF, dot(F13, F32) - dot(F12, F33))
+    H13 = dot(detF, dot(F12, F23) - dot(F13, F22))
+    H21 = dot(detF, dot(F23, F31) - dot(F21, F33))
+    H22 = dot(detF, dot(F11, F33) - dot(F13, F31))
+    H23 = dot(detF, dot(F13, F21) - dot(F11, F23))
+    H31 = dot(detF, dot(F21, F32) - dot(F22, F31))
+    H32 = dot(detF, dot(F12, F31) - dot(F11, F32))
+    H33 = dot(detF, dot(F11, F22) - dot(F12, F21))
 
     k = array([0.0, 0.0, 1.0])
 
@@ -322,32 +309,47 @@ def glider_full(t, yy):
     pb = mb*(v + cross(omega, rb) + vrb)
     pw = Mw*(v + cross(omega, rw) + vrw)
 
-    Zm = - dot(Minv, cross(dot(M, v) + pp + pb + pw, omega) + M0*G*dot(RT, k) + Fext)
-    Zc = - dot(Jinv, + cross(+ dot(J, omega)
+    Fnet = M0*G*dot(RT, k)
+#    Fin = cross(dot(M, v), omega)
+#    Finp = cross(pp, omega)
+#    Finb = cross(pb, omega)
+#    Finw = cross(pw, omega)
+    Tadded = cross(dot(M, v), v)
+#    Tin = cross(dot(J, omega), omega)
+#    Tp = Mp*G*dot(hat(rp), dot(RT, k))
+#    Tb = mb*G*dot(hat(rb), dot(RT, k))
+#    Tw = Mw*G*dot(hat(rw), dot(RT, k))
+
+    Zf = - dot(Minv, cross(dot(M, v) + pp + pb + pw, omega) + Fnet + Fext)
+    Zm = - dot(Jinv, + cross(+ dot(J, omega)
                              + dot(hat(rp), pp)
                              + dot(hat(rb), pb)
                              + dot(hat(rw), pw),
                              omega)
-                     + cross(dot(M, v), v)
+                     + Tadded
                      + Text
                      + cross(cross(omega, rp), pp)
                      + cross(cross(omega, rb), pb)
                      + cross(cross(omega, rw), pw)
                      + dot((Mp*hat(rp) + mb*hat(rb) + Mw*hat(rw))*G, dot(RT, k)))
-    Zp = Zm - cross(omega, vrp) + cross(Zc, rp)
-    Zb = Zm - cross(omega, vrb) + cross(Zc, rb)
-    Zw = Zm - cross(omega, vrw) + cross(Zc, rw)
+    Zp = Zf - cross(omega, vrp) + cross(Zm, rp)
+    Zb = Zf - cross(omega, vrb) + cross(Zm, rb)
+    Zw = Zf - cross(omega, vrw) + cross(Zm, rw)
 
-    up = dot(H11, -Zp + wp) + dot(H12, -Zb + wb) + dot(H12, -Zw + ww)
-    ub = dot(H21, -Zp + wp) + dot(H22, -Zb + wb) + dot(H22, -Zw + ww)
-    uw = dot(H31, -Zp + wp) + dot(H32, -Zb + wb) + dot(H32, -Zw + ww)
+    up = dot(H11, -Zp + wp) + dot(H12, -Zb + wb) + dot(H13, -Zw + ww)
+    ub = dot(H21, -Zp + wp) + dot(H22, -Zb + wb) + dot(H23, -Zw + ww)
+    uw = dot(H31, -Zp + wp) + dot(H32, -Zb + wb) + dot(H33, -Zw + ww)
+
+    Tup = dot(hat(rp), up)
+    Tub = dot(hat(rb), ub)
+    Tuw = dot(hat(rw), uw)
 
     TT = (+ cross(+ dot(J, omega)
                   + dot(hat(rp), pp)
                   + dot(hat(rb), pb)
                   + dot(hat(rw), pw),
                   omega)
-          + cross(dot(M, v), v)
+          + Tadded
           + cross(cross(omega, rp), pp)
           + cross(cross(omega, rb), pb)
           + cross(cross(omega, rw), pw)
@@ -356,7 +358,7 @@ def glider_full(t, yy):
           - dot(hat(rp), up) - (dot(hat(rb), ub) + dot(hat(rw), uw)))
          
     FF = (+ cross(dot(M, v) + pp + pb + pw, omega)
-          + M0*G*dot(RT, k)
+          + Fnet
           + Fext
           - up - (ub + uw))
     
@@ -421,10 +423,16 @@ def print_step(t, yy):
     vrw3 = yy[30]
     mb = yy[31]
     theta = asin(2*(q0*q2 - q3*q1))
-    if v1 != 0 and v3 != 0:
-        alpha = atan(v3/v1)
+    Vsq = v1*v1 + v2*v2 + v3*v3
+    if sqrt(v1*v1 + v3*v3) > 0:
+        alpha = atan(v3 / v1)
     else:
         alpha = 0
+    if Vsq != 0:
+        beta = atan(v2 / sqrt(Vsq))
+    else:
+        beta = 0
+
     print ("%8.4f %15e %15e %15e %15e %15e %15e %15e %15e %15e %15e %15e %15e %15e") % (t, z, x, theta, omega2, v1, v3, sqrt(v1*v1+v3*v3+v2*v2), alpha, rp1, rp3, vrp1, vrp3, mb)
 
     
@@ -447,13 +455,15 @@ solver.set_initial_value(y0, 0)
 y_res = [array(y0)]
 t = [0]
 print "       t               z               x           theta          omega2              v1              v3               V           alpha             rp1             rp3            vrp1            vrp3              mb"
-while solver.successful() and solver.t < 300:
+while solver.successful() and solver.t < 1000:
     solver.integrate(solver.t + 0.1, step=100)
    
     y_res.append(solver.y)
     t.append(solver.t)
     print_step(solver.t, solver.y)
 
+y_res = y_res[:-1]
+t = t[:-1]
 y_res = array(y_res).T
 
 q0 = y_res[0]
@@ -503,9 +513,9 @@ RWB = array([[array(map(cos, alpha))*array(map(cos, beta)), -array(map(cos, alph
 fext = f_hydro(Vsq, alpha, beta)
 text = m_hydro(Vsq, alpha, beta, array([omega1, omega2, omega3]))
 
-l = -(RWB[0,0]*fext[0] + RWB[0,1]*fext[1] + RWB[0,2]*fext[2])
+d = (RWB[0,0]*fext[0] + RWB[0,1]*fext[1] + RWB[0,2]*fext[2])
 sf = (RWB[1,0]*fext[0] + RWB[1,1]*fext[1] + RWB[1,2]*fext[2])
-d = -(RWB[2,0]*fext[0] + RWB[2,1]*fext[1] + RWB[2,2]*fext[2])
+l = (RWB[2,0]*fext[0] + RWB[2,1]*fext[1] + RWB[2,2]*fext[2])
 
 mom1 = (RWB[0,0]*text[0] + RWB[0,1]*text[1] + RWB[0,2]*text[2])
 mom2 = (RWB[1,0]*text[0] + RWB[1,1]*text[1] + RWB[1,2]*text[2])
@@ -527,7 +537,7 @@ fig, (xplt, yplt, zplt,
  
 zplt.plot(t, z)
 zplt.set_ylabel('depth (m)')
-#zplt.set_ylim([65, 0])
+zplt.set_ylim([65, 0])
 
 xplt.plot(t, x)
 xplt.set_ylabel('x (m)')
