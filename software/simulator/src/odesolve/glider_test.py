@@ -23,10 +23,10 @@ J = array([[ J1, 0.0, 0.0],
            [0.0,  J2, 0.0],
            [0.0, 0.0,  J3]])
 
-Mh = 39.99
+Mh = 20.00
 Mfull = 50.0
 Mp = 9.0
-Mw = 0.01
+Mw = 20.0
 Mf1 = 5.0
 Mf2 = 60.0
 Mf3 = 70.0
@@ -55,6 +55,8 @@ KOmega2 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
                  [     0.0,      0.0,    -50.0]])
 
+current_velocity = array([0.5, 0.0, 0.0])
+
 down_glide = True
 
 model = GliderModelFull(intertia_matrix = J,
@@ -72,16 +74,21 @@ model = GliderModelFull(intertia_matrix = J,
                         sideforce_coeff = KSF,
                         viscous_moment_coeffs = KM,
                         damping_matrix_linear = KOmega1,
-                        damping_matrix_quadratic = KOmega2)
+                        damping_matrix_quadratic = KOmega2,
+                        current_velocity = current_velocity)
                        
 orientation = array([0.0, 0.0, 0.0])
-position = array([0.0, 0.0, 59.0])
+position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
 linear_velocity = array([0.0, 0.0, 0.0])
-point_mass_position = array([0.0198, 0.00, 0.05])
+point_mass_position = array([0.0198, 0.0, 0.05])
 point_mass_velocity = array([0.0, 0.0, 0.0])
 ballast_mass = 1.047
-tmax = int(sys.argv[1])
+tmax = float(sys.argv[1])
+if len(sys.argv) > 2:
+    dt = float(sys.argv[2])
+else:
+    dt = 0.1
 
 model.set_initial_values(0,
                          orientation = orientation,
@@ -139,28 +146,30 @@ def W_motor(glider_step):
 y_res = []
 t = []
 
-while model.successful() and model.t < tmax:
+while model.successful() and (tmax - model.t) > dt/2:
     y = model.next(0.1)
     w = W_motor(y)
     model.set_control_accels(w)
-    print model.t
 
     y_res += [y]
     t += [model.t]
 
+    print model.t
 
-plt.rcParams.update({'figure.figsize': (10,48)})
+
+plt.rcParams.update({'figure.figsize': (10,64)})
 fig, (xplt, yplt, zplt,
       phiplt, thetaplt, psiplt,
       omega1plt, omega2plt, omega3plt,
       v1plt, v2plt, v3plt, vplt,
+      vreal1plt, vreal2plt, vreal3plt, vrealplt,
       alphaplt, betaplt,
       rp1plt, rp2plt, rp3plt,
       vrp1plt, vrp2plt, vrp3plt,
       lplt, sfplt, dplt,
       m1plt, m2plt, m3plt,
       up1plt, up2plt, up3plt,
-      mbplt, m0plt) = plt.subplots(32,1)
+      mbplt, m0plt) = plt.subplots(36,1)
 
 z = array(map(lambda y: y.z, y_res))
 x = array(map(lambda y: y.x, y_res))
@@ -175,6 +184,10 @@ v1 = array(map(lambda y: y.v1, y_res))
 v2 = array(map(lambda y: y.v2, y_res))
 v3 = array(map(lambda y: y.v3, y_res))
 V = array(map(lambda y: sqrt(y.Vsq), y_res))
+vreal1 = array(map(lambda y: y.vreal[0], y_res))
+vreal2 = array(map(lambda y: y.vreal[1], y_res))
+vreal3 = array(map(lambda y: y.vreal[2], y_res))
+Vreal = array(map(lambda y: sqrt(y.Vsqreal), y_res))
 alpha = array(map(lambda y: y.alpha, y_res))
 beta = array(map(lambda y: y.beta, y_res))
 rp1 = array(map(lambda y: y.rp1, y_res))
@@ -226,16 +239,28 @@ omega3plt.plot(t, omega3 / (pi/180))
 omega3plt.set_ylabel('$\\Omega_3 (^{\\circ}/s)$')
  
 v1plt.plot(t, v1)
-v1plt.set_ylabel('$v_1 (m/s)$')
+v1plt.set_ylabel('$v_{r1} (m/s)$')
  
 v2plt.plot(t, v2)
-v2plt.set_ylabel('$v_2 (m/s)$')
+v2plt.set_ylabel('$v_{r2} (m/s)$')
  
 v3plt.plot(t, v3)
-v3plt.set_ylabel('$v_3 (m/s)$')
+v3plt.set_ylabel('$v_{r3} (m/s)$')
  
 vplt.plot(t, V)
-vplt.set_ylabel('v (m/s)')
+vplt.set_ylabel('$v_{r} (m/s)$')
+ 
+vreal1plt.plot(t, vreal1)
+vreal1plt.set_ylabel('$v (m/s)$')
+ 
+vreal2plt.plot(t, vreal2)
+vreal2plt.set_ylabel('$v (m/s)$')
+ 
+vreal3plt.plot(t, vreal3)
+vreal3plt.set_ylabel('$v (m/s)$')
+ 
+vrealplt.plot(t, Vreal)
+vrealplt.set_ylabel('$v (m/s)$')
  
 alphaplt.plot(t, alpha / (pi/180))
 alphaplt.set_ylabel('$\\alpha (^{\circ})$')
@@ -294,5 +319,5 @@ mbplt.set_ylabel('$m_b (kg)$')
 m0plt.plot(t, m0)
 m0plt.set_ylabel('$m_0 (kg)$')
  
-plt.savefig('glider_full.png')
+plt.savefig('glider_full.png', bbox_inches='tight')
 

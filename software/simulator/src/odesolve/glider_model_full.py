@@ -53,6 +53,8 @@ class GliderModelFullStep:
         self.vrw3 = yy[30]
         self.mb = yy[31]
         self.Vsq = self.v1*self.v1 + self.v2*self.v2 + self.v3*self.v3
+        self.v = array([self.v1, self.v2, self.v3])
+
         if self.v1 != 0:
             self.alpha = atan(self.v3 / self.v1)
         else:
@@ -83,6 +85,9 @@ class GliderModelFullStep:
                         [R21, R22, R23],
                         [R31, R32, R33]])
         RT = transpose(self.R)
+
+        self.vreal = dot(self.R, self.v) + glider_model.vc
+        self.Vsqreal = self.vreal[0]*self.vreal[0] + self.vreal[1]*self.vreal[1] + self.vreal[2]*self.vreal[2]
 
         self.b = array([self.x, self.y, self.z])
 
@@ -189,7 +194,8 @@ class GliderModelFull:
                  sideforce_coeff,
                  viscous_moment_coeffs,
                  damping_matrix_linear,
-                 damping_matrix_quadratic):
+                 damping_matrix_quadratic,
+                 current_velocity):
         self.J = intertia_matrix
         J = self.J
         self.Jinv = inv(J)
@@ -226,6 +232,8 @@ class GliderModelFull:
         KOmega1 = self.KOmega1 
         self.KOmega2 = damping_matrix_quadratic
         KOmega2 = self.KOmega2 
+        self.vc = current_velocity
+        vc = self.vc
 
         def f_hydro(Vsq, alpha, beta):
             D = (KD0 + KD*alpha*alpha)*Vsq
@@ -247,11 +255,14 @@ class GliderModelFull:
         self.ww = array([0.0, 0.0, 0.0])
         self.u4 = 0
 
-        def accels(self):
+        def get_accels(self):
             return [self.wp,
                     self.wb,
                     self.ww,
                     self.u4]
+
+        def get_vc(self):
+            return self.vc
 
         def glider_full(t, yy):
             q0 = yy[0]
@@ -287,16 +298,6 @@ class GliderModelFull:
             vrw3 = yy[30]
             mb = yy[31]
 
-            Vsq = v1*v1 + v2*v2 + v3*v3
-            if v1 != 0:
-                alpha = atan(v3 / v1)
-            else:
-                alpha = pi / 2
-            if (Vsq) != 0:
-                beta = asin(v2 / sqrt(Vsq))
-            else:
-                beta = 0
-
             R11 = q0*q0 + q1*q1 - q2*q2 - q3*q3
             R12 = 2*(q1*q2 - q0*q3)
             R13 = 2*(q1*q3 + q0*q2)
@@ -317,6 +318,16 @@ class GliderModelFull:
                        [R21, R22, R23],
                        [R31, R32, R33]])
             RT = transpose(R)
+
+            Vsq = v1*v1 + v2*v2 + v3*v3
+            if v1 != 0:
+                alpha = atan(v3 / v1)
+            else:
+                alpha = pi / 2
+            if (Vsq) != 0:
+                beta = asin(v2 / sqrt(Vsq))
+            else:
+                beta = 0
 
             RWB = array([[cos(alpha)*cos(beta), -cos(alpha)*sin(beta), -sin(alpha)],
                          [           sin(beta),             cos(beta),           0],
@@ -340,7 +351,8 @@ class GliderModelFull:
             Fext = dot(RWB, f_hydro(Vsq, alpha, beta))
             Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega))
 
-            [wp, wb, ww, u4] = accels(self)
+            [wp, wb, ww, u4] = get_accels(self)
+            vc = get_vc(self)
 
             F11 = Minv - dot(dot(hat(rp), Jinv), hat(rp)) + 1.0/Mp*identity(3)
             F12 = Minv - dot(dot(hat(rp), Jinv), hat(rb))
@@ -416,8 +428,9 @@ class GliderModelFull:
                   + Fext
                   - up - (ub + uw))
 
+            
             dq = dot(dR, q)
-            db = dot(R, v)
+            db = dot(R, v) + vc
             domega = dot(Jinv, TT)
             dv = dot(Minv, FF)
             drp = vrp
@@ -493,3 +506,6 @@ class GliderModelFull:
         self.u4 = w[1]
         self.wb = array([0,0,0])
         self.ww = array([0,0,0])
+
+    def set_current(self, current_velocity):
+        self.vc = current_velocity
