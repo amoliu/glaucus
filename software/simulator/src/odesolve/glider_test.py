@@ -251,13 +251,13 @@ vplt.plot(t, V)
 vplt.set_ylabel('$v_{r} (m/s)$')
  
 vreal1plt.plot(t, vreal1)
-vreal1plt.set_ylabel('$v (m/s)$')
+vreal1plt.set_ylabel('$v_1 (m/s)$')
  
 vreal2plt.plot(t, vreal2)
-vreal2plt.set_ylabel('$v (m/s)$')
+vreal2plt.set_ylabel('$v_2 (m/s)$')
  
 vreal3plt.plot(t, vreal3)
-vreal3plt.set_ylabel('$v (m/s)$')
+vreal3plt.set_ylabel('$v_3 (m/s)$')
  
 vrealplt.plot(t, Vreal)
 vrealplt.set_ylabel('$v (m/s)$')
