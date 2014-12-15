@@ -106,8 +106,8 @@ class GliderModelFullStep:
         f_hydro = glider_model.f_hydro
         m_hydro = glider_model.m_hydro
         self.M0 = self.mb + glider_model.Mh + glider_model.Mp + glider_model.Mw - glider_model.Mfull
-        self.Fext = dot(self.RWB, f_hydro(self.Vsq, self.alpha, self.beta))
-        self.Text = dot(self.RWB, m_hydro(self.Vsq, self.alpha, self.beta, self.omega))
+        self.Fext = dot(self.RWB, f_hydro(self.Vsq, self.alpha, self.beta, glider_model.drud)) + array([glider_model.ut, 0, 0])
+        self.Text = dot(self.RWB, m_hydro(self.Vsq, self.alpha, self.beta, self.omega, glider_model.drud))
         F11 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rp)) + 1.0/glider_model.Mp*identity(3)
         F12 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rb))
         F13 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rw))
@@ -171,6 +171,8 @@ class GliderModelFullStep:
         self.wb = glider_model.wb
         self.ww = glider_model.ww
         self.u4 = glider_model.u4
+        self.ut = glider_model.ut
+        self.drud = glider_model.drud
 
         self.Tup = dot(hat(self.rp), self.up)
         self.Tub = dot(hat(self.rb), self.ub)
@@ -192,7 +194,9 @@ class GliderModelFull:
                  drag_coeff,
                  sideforce_coeff0,
                  sideforce_coeff,
-                 viscous_moment_coeffs,
+                 rudder_sideforce_coeff,
+                 viscous_momentum_coeffs,
+                 rudder_momentum_coeffs,
                  damping_matrix_linear,
                  damping_matrix_quadratic,
                  current_velocity):
@@ -226,8 +230,12 @@ class GliderModelFull:
         KSF0 = self.KSF0 
         self.KSF = sideforce_coeff
         KSF = self.KSF 
-        self.KM = viscous_moment_coeffs
+        self.KR = rudder_sideforce_coeff
+        KR = self.KR
+        self.KM = viscous_momentum_coeffs
         KM = self.KM 
+        self.KMR = rudder_momentum_coeffs
+        KMR = self.KMR
         self.KOmega1 = damping_matrix_linear
         KOmega1 = self.KOmega1 
         self.KOmega2 = damping_matrix_quadratic
@@ -235,16 +243,16 @@ class GliderModelFull:
         self.vc = current_velocity
         vc = self.vc
 
-        def f_hydro(Vsq, alpha, beta):
+        def f_hydro(Vsq, alpha, beta, drud):
             D = (KD0 + KD*alpha*alpha)*Vsq
-            SF = (KSF0 + KSF*beta)*Vsq
+            SF = (KSF0 + KSF*beta + KR*drud)*Vsq
             L = (KL*alpha)*Vsq
             return array([-D, SF, -L])
 
         self.f_hydro = f_hydro
 
-        def m_hydro(Vsq, alpha, beta, omega):
-            return (KM*array([beta, alpha, beta])*Vsq +
+        def m_hydro(Vsq, alpha, beta, omega, drud):
+            return (KM*array([beta, alpha, beta] + KMR*array([drud, 0, drud]))*Vsq +
                     dot(KOmega1, omega) +
                     dot(KOmega2, omega*omega))
 
@@ -254,12 +262,16 @@ class GliderModelFull:
         self.wb = array([0.0, 0.0, 0.0])
         self.ww = array([0.0, 0.0, 0.0])
         self.u4 = 0
+        self.drud = 0
+        self.ut = 0
 
-        def get_accels(self):
+        def get_controls(self):
             return [self.wp,
                     self.wb,
                     self.ww,
-                    self.u4]
+                    self.u4,
+                    self.ut,
+                    self.drud]
 
         def get_vc(self):
             return self.vc
@@ -348,10 +360,10 @@ class GliderModelFull:
             vrw = array([vrw1, vrw2, vrw3])
 
             M0 = mb + Mh + Mp + Mw - Mfull
-            Fext = dot(RWB, f_hydro(Vsq, alpha, beta))
-            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega))
+            [wp, wb, ww, u4, ut, drud] = get_controls(self)
+            Fext = dot(RWB, f_hydro(Vsq, alpha, beta, drud)) + array([ut, 0, 0])
+            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega, drud))
 
-            [wp, wb, ww, u4] = get_accels(self)
             vc = get_vc(self)
 
             F11 = Minv - dot(dot(hat(rp), Jinv), hat(rp)) + 1.0/Mp*identity(3)
@@ -501,11 +513,13 @@ class GliderModelFull:
     def successful(self):
         return self.solver.successful()
 
-    def set_control_accels(self, w):
+    def set_controls(self, w):
         self.wp = w[0]
         self.u4 = w[1]
         self.wb = array([0,0,0])
         self.ww = array([0,0,0])
+        self.drud = w[2]
+        self.ut = w[3]
 
     def set_current(self, current_velocity):
         self.vc = current_velocity

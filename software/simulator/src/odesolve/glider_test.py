@@ -47,6 +47,8 @@ KSF0 = 0.0
 KSF = -90.0
 
 KM = array([KML, KMM, KMN])
+KR = 0.0
+KMR = array([0.0, 0.0, 0.0])
 
 KOmega1 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
@@ -72,7 +74,9 @@ model = GliderModelFull(intertia_matrix = J,
                         drag_coeff = KD,
                         sideforce_coeff0 = KSF0,
                         sideforce_coeff = KSF,
-                        viscous_moment_coeffs = KM,
+                        rudder_sideforce_coeff = KR,
+                        viscous_momentum_coeffs = KM,
+                        rudder_momentum_coeffs = KMR,
                         damping_matrix_linear = KOmega1,
                         damping_matrix_quadratic = KOmega2,
                         current_velocity = current_velocity)
@@ -141,7 +145,7 @@ def W_motor(glider_step):
     else:
         w2 = -kfri*glider_step.vrp2
 
-    return [array([w1,w2,0]), u4]
+    return [array([w1,w2,0]), u4, 0.0, 0.0]
 
 y_res = []
 t = []
@@ -149,7 +153,7 @@ t = []
 while model.successful() and (tmax - model.t) > dt/2:
     y = model.next(0.1)
     w = W_motor(y)
-    model.set_control_accels(w)
+    model.set_controls(w)
 
     y_res += [y]
     t += [model.t]
