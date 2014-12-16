@@ -148,18 +148,22 @@ class GliderModelFullStep:
         self.Tb = self.mb*G*dot(hat(self.rb), dot(RT, k))
         self.Tw = glider_model.Mw*G*dot(hat(self.rw), dot(RT, k))
 
-        Zf = - dot(glider_model.Minv, cross(dot(glider_model.M, self.v) + self.pp + self.pb + self.pw, self.omega) + self.Fnet + self.Fext)
-        Zm = - dot(glider_model.Jinv, + cross(+ dot(glider_model.J, self.omega)
-                                              + dot(hat(self.rp), self.pp)
-                                              + dot(hat(self.rb), self.pb)
-                                              + dot(hat(self.rw), self.pw),
-                                              self.omega)
-                   + self.Tadded
-                   + self.Text
-                   + cross(cross(self.omega, self.rp), self.pp)
-                   + cross(cross(self.omega, self.rb), self.pb)
-                   + cross(cross(self.omega, self.rw), self.pw)
-                   + dot((glider_model.Mp*hat(self.rp) + self.mb*hat(self.rb) + glider_model.Mw*hat(self.rw))*G, dot(RT, k)))
+        Tm = (+ cross(+ dot(glider_model.J, self.omega)
+              + dot(hat(self.rp), self.pp)
+              + dot(hat(self.rb), self.pb)
+              + dot(hat(self.rw), self.pw),
+              self.omega)
+              + self.Tadded
+              + self.Text
+              + cross(cross(self.omega, self.rp), self.pp)
+              + cross(cross(self.omega, self.rb), self.pb)
+              + cross(cross(self.omega, self.rw), self.pw)
+              + dot((glider_model.Mp*hat(self.rp) + self.mb*hat(self.rb) + glider_model.Mw*hat(self.rw))*G, dot(RT, k)))
+
+        Fm = cross(dot(glider_model.M, self.v) + self.pp + self.pb + self.pw, self.omega) + self.Fnet + self.Fext
+
+        Zf = - dot(glider_model.Minv, Fm)
+        Zm = - dot(glider_model.Jinv, Tm)
         Zp = Zf - cross(self.omega, self.vrp) + cross(Zm, self.rp)
         Zb = Zf - cross(self.omega, self.vrb) + cross(Zm, self.rb)
         Zw = Zf - cross(self.omega, self.vrw) + cross(Zm, self.rw)
@@ -398,18 +402,22 @@ class GliderModelFull:
             Fnet = M0*G*dot(RT, k)
             Tadded = cross(dot(M, v), v)
 
-            Zf = - dot(Minv, cross(dot(M, v) + pp + pb + pw, omega) + Fnet + Fext)
-            Zm = - dot(Jinv, + cross(+ dot(J, omega)
-                                     + dot(hat(rp), pp)
-                                     + dot(hat(rb), pb)
-                                     + dot(hat(rw), pw),
-                                     omega)
-                             + Tadded
-                             + Text
-                             + cross(cross(omega, rp), pp)
-                             + cross(cross(omega, rb), pb)
-                             + cross(cross(omega, rw), pw)
-                             + dot((Mp*hat(rp) + mb*hat(rb) + Mw*hat(rw))*G, dot(RT, k)))
+            Tm = (+ cross(+ dot(J, omega)
+                          + dot(hat(rp), pp)
+                          + dot(hat(rb), pb)
+                          + dot(hat(rw), pw),
+                          omega)
+                  + Tadded
+                  + Text
+                  + cross(cross(omega, rp), pp)
+                  + cross(cross(omega, rb), pb)
+                  + cross(cross(omega, rw), pw)
+                  + dot((Mp*hat(rp) + mb*hat(rb) + Mw*hat(rw))*G, dot(RT, k)))
+
+            Fm = cross(dot(M, v) + pp + pb + pw, omega) + Fnet + Fext
+
+            Zf = - dot(Minv, Fm)
+            Zm = - dot(Jinv, Tm)
             Zp = Zf - cross(omega, vrp) + cross(Zm, rp)
             Zb = Zf - cross(omega, vrb) + cross(Zm, rb)
             Zw = Zf - cross(omega, vrw) + cross(Zm, rw)
@@ -422,23 +430,9 @@ class GliderModelFull:
             Tub = dot(hat(rb), ub)
             Tuw = dot(hat(rw), uw)
 
-            TT = (+ cross(+ dot(J, omega)
-                          + dot(hat(rp), pp)
-                          + dot(hat(rb), pb)
-                          + dot(hat(rw), pw),
-                          omega)
-                  + Tadded
-                  + cross(cross(omega, rp), pp)
-                  + cross(cross(omega, rb), pb)
-                  + cross(cross(omega, rw), pw)
-                  + dot((Mp*hat(rp) + mb*hat(rb) + Mw*hat(rw))*G, dot(RT, k))
-                  + Text
-                  - dot(hat(rp), up) - (dot(hat(rb), ub) + dot(hat(rw), uw)))
+            TT = Tm - dot(hat(rp), up) - (dot(hat(rb), ub) + dot(hat(rw), uw))
 
-            FF = (+ cross(dot(M, v) + pp + pb + pw, omega)
-                  + Fnet
-                  + Fext
-                  - up - (ub + uw))
+            FF = Fm - up - (ub + uw)
 
             
             dq = dot(dR, q)
