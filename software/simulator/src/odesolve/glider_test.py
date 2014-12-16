@@ -33,20 +33,19 @@ Mf3 = 70.0
 Mf = array([[Mf1, 0.0, 0.0],
             [0.0, Mf2, 0.0],
             [0.0, 0.0, Mf3]])
-rb0 = array([0.0,    0.0, 0.0 ])
-rw0 = array([0.0,    0.0, 0.0 ])
+rb0 = array([0.0, 0.0, 0.0 ])
+rw0 = array([0.0, 0.0, 0.02 ])
 
 KL0 = 0.0
 KL = 132.5
 KD0 = 2.15
 KD = 25.0
-KMM = -100.0
-KML = -100.0
-KMN = -100.0
 KSF0 = 0.0
 KSF = -90.0
+KT = 1.0
+KMT = 0.0000000
 
-KM = array([KML, KMM, KMN])
+KM = array([-100.0, -100.0, -100.0])
 KR = 0.0
 KMR = array([0.0, 0.0, 0.0])
 
@@ -57,7 +56,7 @@ KOmega2 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
                  [     0.0,      0.0,    -50.0]])
 
-current_velocity = array([0.5, 0.0, 0.0])
+current_velocity = array([0.0, 0.0, 0.0])
 
 down_glide = True
 
@@ -77,6 +76,8 @@ model = GliderModelFull(intertia_matrix = J,
                         rudder_sideforce_coeff = KR,
                         viscous_momentum_coeffs = KM,
                         rudder_momentum_coeffs = KMR,
+                        throttle_coeff = KT,
+                        throttle_momentum_coeff = KMT,
                         damping_matrix_linear = KOmega1,
                         damping_matrix_quadratic = KOmega2,
                         current_velocity = current_velocity)
@@ -85,7 +86,7 @@ orientation = array([0.0, 0.0, 0.0])
 position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
 linear_velocity = array([0.0, 0.0, 0.0])
-point_mass_position = array([0.0198, 0.0, 0.05])
+point_mass_position = array([0.0198, 0.0100, 0.05])
 point_mass_velocity = array([0.0, 0.0, 0.0])
 ballast_mass = 1.047
 tmax = float(sys.argv[1])
@@ -145,7 +146,7 @@ def W_motor(glider_step):
     else:
         w2 = -kfri*glider_step.vrp2
 
-    return [array([w1,w2,0]), u4, 0.0, 0.0]
+    return [array([w1,w2,0]), u4, 1.0, 0.0]
 
 y_res = []
 t = []
@@ -173,7 +174,9 @@ fig, (xplt, yplt, zplt,
       lplt, sfplt, dplt,
       m1plt, m2plt, m3plt,
       up1plt, up2plt, up3plt,
-      mbplt, m0plt) = plt.subplots(36,1)
+      mbplt, m0plt,
+      wp1plt, wp2plt, u4plt,
+      ftplt, mtplt, drudplt) = plt.subplots(42,1)
 
 z = array(map(lambda y: y.z, y_res))
 x = array(map(lambda y: y.x, y_res))
@@ -213,6 +216,12 @@ up1 = array(map(lambda y: y.up[0], y_res))
 up2 = array(map(lambda y: y.up[1], y_res))
 up3 = array(map(lambda y: y.up[2], y_res))
 m0 = array(map(lambda y: y.M0, y_res))
+wp1 = array(map(lambda y: y.wp[0], y_res))
+wp2 = array(map(lambda y: y.wp[1], y_res))
+u4 = array(map(lambda y: y.u4, y_res))
+ft = array(map(lambda y: y.FT, y_res))
+mt = array(map(lambda y: y.MT, y_res))
+drud = array(map(lambda y: y.drud, y_res))
  
 zplt.plot(t, z)
 zplt.set_ylabel('depth (m)')
@@ -323,5 +332,23 @@ mbplt.set_ylabel('$m_b (kg)$')
 m0plt.plot(t, m0)
 m0plt.set_ylabel('$m_0 (kg)$')
  
+wp1plt.plot(t, wp1)
+wp1plt.set_ylabel('$w_{p1} (m/s^2)$')
+ 
+wp2plt.plot(t, wp2)
+wp2plt.set_ylabel('$w_{p2} (m/s^2)$')
+
+u4plt.plot(t, u4)
+u4plt.set_ylabel('$u_{4} (kg/s)$')
+
+ftplt.plot(t, ft)
+ftplt.set_ylabel('$F_{T} (N)$')
+
+mtplt.plot(t, mt)
+mtplt.set_ylabel('$M_{T} (N*m)$')
+
+drudplt.plot(t, drud / (pi / 180))
+drudplt.set_ylabel('$\delta{r} (^{\circ})$')
+
 plt.savefig('glider_full.png', bbox_inches='tight')
 

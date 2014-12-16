@@ -176,6 +176,8 @@ class GliderModelFullStep:
         self.ww = glider_model.ww
         self.u4 = glider_model.u4
         self.ut = glider_model.ut
+        self.FT = glider_model.KT * glider_model.ut
+        self.MT = glider_model.KMT * glider_model.ut
         self.drud = glider_model.drud
 
         self.Tup = dot(hat(self.rp), self.up)
@@ -201,6 +203,8 @@ class GliderModelFull:
                  rudder_sideforce_coeff,
                  viscous_momentum_coeffs,
                  rudder_momentum_coeffs,
+                 throttle_coeff,
+                 throttle_momentum_coeff,
                  damping_matrix_linear,
                  damping_matrix_quadratic,
                  current_velocity):
@@ -240,6 +244,10 @@ class GliderModelFull:
         KM = self.KM 
         self.KMR = rudder_momentum_coeffs
         KMR = self.KMR
+        self.KT = throttle_coeff
+        KT = self.KT
+        self.KMT = throttle_momentum_coeff
+        KMT = self.KMT
         self.KOmega1 = damping_matrix_linear
         KOmega1 = self.KOmega1 
         self.KOmega2 = damping_matrix_quadratic
@@ -365,8 +373,8 @@ class GliderModelFull:
 
             M0 = mb + Mh + Mp + Mw - Mfull
             [wp, wb, ww, u4, ut, drud] = get_controls(self)
-            Fext = dot(RWB, f_hydro(Vsq, alpha, beta, drud)) + array([ut, 0, 0])
-            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega, drud))
+            Fext = dot(RWB, f_hydro(Vsq, alpha, beta, drud)) + KT*array([ut, 0, 0])
+            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega, drud)) + KMT*array([ut, 0, 0])
 
             vc = get_vc(self)
 
@@ -512,8 +520,8 @@ class GliderModelFull:
         self.u4 = w[1]
         self.wb = array([0,0,0])
         self.ww = array([0,0,0])
-        self.drud = w[2]
-        self.ut = w[3]
+        self.ut = w[2]
+        self.drud = w[3]
 
     def set_current(self, current_velocity):
         self.vc = current_velocity
