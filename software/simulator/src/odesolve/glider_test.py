@@ -42,12 +42,12 @@ KD0 = 2.15
 KD = 25.0
 KSF0 = 0.0
 KSF = -90.0
-KT = 1.0
-KMT = 0.0000000
+KT = 0.0
+KMT = 0.0
 
 KM = array([-100.0, -100.0, -100.0])
-KR = 0.0
-KMR = array([0.0, 0.0, 0.0])
+KR = 1.0
+KMR = array([1.0, 0.0, 1.0])
 
 KOmega1 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
@@ -82,11 +82,11 @@ model = GliderModelFull(intertia_matrix = J,
                         damping_matrix_quadratic = KOmega2,
                         current_velocity = current_velocity)
                        
-orientation = array([0.0, 0.0, 0.0])
+orientation = array([37.0 * (pi/180), 54.0 * (pi/180), 0.0])
 position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
-linear_velocity = array([0.0, 0.0, 0.0])
-point_mass_position = array([0.0198, 0.0100, 0.05])
+linear_velocity = array([-0.07, 0.01, 0.4])
+point_mass_position = array([0.0198, 0.00, 0.05])
 point_mass_velocity = array([0.0, 0.0, 0.0])
 ballast_mass = 1.047
 tmax = float(sys.argv[1])
@@ -100,61 +100,52 @@ model.set_initial_values(0,
                          position = position,
                          angular_velocity = angular_velocity,
                          linear_velocity = linear_velocity,
-                         point_mass_position = point_mass_position,
+                         point_mass_position = array([0.0, 0.0, 0.05]),#point_mass_position,
                          point_mass_velocity = point_mass_velocity,
-                         ballast_mass = ballast_mass)
+                         ballast_mass = 1.0)#ballast_mass)
 
-def W_motor(glider_step):
+def get_controls(glider_step):
+    rp1_err = glider_step.rp1 - point_mass_position[0]
+    rp2_err = glider_step.rp2 - point_mass_position[1]
+    mb_err = glider_step.mb - ballast_mass
+    if rp1_err != 0 and abs(rp1_err) < 0.001:
+        pv1 = -rp1_err/abs(rp1_err)*0.02
+    else:
+        pv1 = 0
+    if rp2_err != 0 and abs(rp2_err) < 0.001:
+        pv2 = -rp2_err/abs(rp2_err)*0.02
+    else:
+        pv2 = 0
+    if mb_err != 0 and abs(rp2_err) < 0.00025:
+        mb = -mb_err/abs(mb_err)*0.0001
+    else:
+        mb = 0
+
+    return (pv1, pv2, mb, 0.0, 0.0)
+
+def W(glider_step):
     kfri = 10
 
-    global down_glide
+    (pv1, pv2, mb, throttle, rudder_vel) = get_controls(glider_step)
 
-    if down_glide and glider_step.z > 60:
-        down_glide = False
-    elif not down_glide and glider_step.z < 10:
-        down_glide = True
+    w1 = pv1 - kfri*glider_step.vrp1 - kfri*glider_step.vrp1*abs(kfri*glider_step.vrp1)
+    w2 = pv2 - kfri*glider_step.vrp2 - kfri*glider_step.vrp2*abs(kfri*glider_step.vrp2)
+    u4 = mb
+    ut = throttle
+    drud = glider_step.drud + rudder_vel
 
-    w1 = 0
-    w2 = 0
-    u4 = 0
-
-    if down_glide:
-        rp1_set = point_mass_position[0]
-        rp2_set = point_mass_position[1]
-        mb_set = ballast_mass
-    else:
-        rp1_set = -point_mass_position[0]
-        rp2_set = -point_mass_position[1]
-        mb_set = 1.0 - (ballast_mass - 1.0)
-
-    rp1_err = glider_step.rp1 - rp1_set
-    rp2_err = glider_step.rp2 - rp2_set
-    mb_err = glider_step.mb - mb_set
-
-    if abs(mb_err) > 0.00001:
-        u4 = -(mb_err/abs(mb_err))*mbv_max
-
-    if abs(rp1_err) > 0.001:
-        if abs(glider_step.vrp1) < rv_max:
-            w1 = -rp1_err/abs(rp1_err)*0.1
-    else:
-        w1 = -kfri*glider_step.vrp1
-
-    if abs(rp2_err) > 0.001:
-        if abs(glider_step.vrp2) < rv_max:
-            w2 = -rp2_err/abs(rp2_err)*0.1
-    else:
-        w2 = -kfri*glider_step.vrp2
-
-    return [array([w1,w2,0]), u4, 1.0, 0.0]
+    return (array([w1,w2,0]), u4, ut, drud)
 
 y_res = []
 t = []
 
 while model.successful() and (tmax - model.t) > dt/2:
     y = model.next(0.1)
-    w = W_motor(y)
-    model.set_controls(w)
+    (wp, u4, ut, drud) = W(y)
+    model.set_controls(point_mass_accels = wp,
+                       ballast_mass_change = u4,
+                       thrust = ut,
+                       rudder_angle = drud)
 
     y_res += [y]
     t += [model.t]

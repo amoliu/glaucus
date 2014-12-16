@@ -515,13 +515,13 @@ class GliderModelFull:
     def successful(self):
         return self.solver.successful()
 
-    def set_controls(self, w):
-        self.wp = w[0]
-        self.u4 = w[1]
+    def set_controls(self, point_mass_accels, ballast_mass_change, thrust, rudder_angle):
+        self.wp = point_mass_accels
+        self.u4 = ballast_mass_change
         self.wb = array([0,0,0])
         self.ww = array([0,0,0])
-        self.ut = w[2]
-        self.drud = w[3]
+        self.ut = thrust
+        self.drud = rudder_angle
 
     def set_current(self, current_velocity):
         self.vc = current_velocity
