@@ -82,10 +82,10 @@ model = GliderModelFull(intertia_matrix = J,
                         damping_matrix_quadratic = KOmega2,
                         current_velocity = current_velocity)
                        
-orientation = array([37.0 * (pi/180), 54.0 * (pi/180), 0.0])
+orientation = array([0.0 * (pi/180), 0.0 * (pi/180), 0.0])
 position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
-linear_velocity = array([-0.07, 0.01, 0.4])
+linear_velocity = array([0.0, 0.00, 0.0])
 point_mass_position = array([0.0198, 0.00, 0.05])
 point_mass_velocity = array([0.0, 0.0, 0.0])
 ballast_mass = 1.047
@@ -104,20 +104,24 @@ model.set_initial_values(0,
                          point_mass_velocity = point_mass_velocity,
                          ballast_mass = 1.0)#ballast_mass)
 
+def noise(omega, alpha=0.0, n=1):
+    return np.random.normal(loc=alpha, scale=omega, size=n)
+
+
 def get_controls(glider_step):
     rp1_err = glider_step.rp1 - point_mass_position[0]
     rp2_err = glider_step.rp2 - point_mass_position[1]
     mb_err = glider_step.mb - ballast_mass
-    if rp1_err != 0 and abs(rp1_err) < 0.001:
+    if rp1_err != 0 and abs(rp1_err) > 0.001:
         pv1 = -rp1_err/abs(rp1_err)*0.02
     else:
         pv1 = 0
-    if rp2_err != 0 and abs(rp2_err) < 0.001:
+    if rp2_err != 0 and abs(rp2_err) > 0.001:
         pv2 = -rp2_err/abs(rp2_err)*0.02
     else:
         pv2 = 0
-    if mb_err != 0 and abs(rp2_err) < 0.00025:
-        mb = -mb_err/abs(mb_err)*0.0001
+    if mb_err != 0 and abs(mb_err) > 0.00025:
+        mb = -mb_err/abs(mb_err)*0.0025
     else:
         mb = 0
 
@@ -169,31 +173,31 @@ fig, (xplt, yplt, zplt,
       wp1plt, wp2plt, u4plt,
       ftplt, mtplt, drudplt) = plt.subplots(42,1)
 
-z = array(map(lambda y: y.z, y_res))
-x = array(map(lambda y: y.x, y_res))
-y = array(map(lambda y: y.y, y_res))
-phi = array(map(lambda y: y.phi, y_res))
-theta = array(map(lambda y: y.theta, y_res))
-psi = array(map(lambda y: y.psi, y_res))
-omega1 = array(map(lambda y: y.omega1, y_res))
-omega2 = array(map(lambda y: y.omega2, y_res))
-omega3 = array(map(lambda y: y.omega3, y_res))
-v1 = array(map(lambda y: y.v1, y_res))
-v2 = array(map(lambda y: y.v2, y_res))
-v3 = array(map(lambda y: y.v3, y_res))
-V = array(map(lambda y: sqrt(y.Vsq), y_res))
-vreal1 = array(map(lambda y: y.vreal[0], y_res))
-vreal2 = array(map(lambda y: y.vreal[1], y_res))
-vreal3 = array(map(lambda y: y.vreal[2], y_res))
-Vreal = array(map(lambda y: sqrt(y.Vsqreal), y_res))
-alpha = array(map(lambda y: y.alpha, y_res))
-beta = array(map(lambda y: y.beta, y_res))
-rp1 = array(map(lambda y: y.rp1, y_res))
-rp2 = array(map(lambda y: y.rp2, y_res))
-rp3 = array(map(lambda y: y.rp3, y_res))
-vrp1 = array(map(lambda y: y.vrp1, y_res))
-vrp2 = array(map(lambda y: y.vrp2, y_res))
-vrp3 = array(map(lambda y: y.vrp3, y_res))
+z = array(map(lambda y: y.z, y_res)) + noise(0.01, n=len(y_res))
+x = array(map(lambda y: y.x, y_res)) + noise(0.01, n=len(y_res))
+y = array(map(lambda y: y.y, y_res)) + noise(0.01, n=len(y_res))
+phi = array(map(lambda y: y.phi, y_res)) + noise(0.0001, n=len(y_res))
+theta = array(map(lambda y: y.theta, y_res)) + noise(0.01, n=len(y_res))
+psi = array(map(lambda y: y.psi, y_res)) + noise(0.0001, n=len(y_res))
+omega1 = array(map(lambda y: y.omega1, y_res)) + noise(0.0001, n=len(y_res))
+omega2 = array(map(lambda y: y.omega2, y_res)) + noise(0.0001, n=len(y_res))
+omega3 = array(map(lambda y: y.omega3, y_res)) + noise(0.0001, n=len(y_res))
+v1 = array(map(lambda y: y.v1, y_res)) + noise(0.01, n=len(y_res))
+v2 = array(map(lambda y: y.v2, y_res)) + noise(0.01, n=len(y_res))
+v3 = array(map(lambda y: y.v3, y_res)) + noise(0.01, n=len(y_res))
+V = sqrt(v1*v1 + v2*v2 + v3*v3)
+vreal1 = array(map(lambda y: y.vreal[0], y_res)) + noise(0.01, n=len(y_res))
+vreal2 = array(map(lambda y: y.vreal[1], y_res)) + noise(0.01, n=len(y_res))
+vreal3 = array(map(lambda y: y.vreal[2], y_res)) + noise(0.01, n=len(y_res))
+Vreal = sqrt(vreal1*vreal1 + vreal2*vreal2 + vreal3*vreal3)
+alpha = array(map(lambda y: y.alpha, y_res)) + noise(0.01, n=len(y_res))
+beta = array(map(lambda y: y.beta, y_res)) + noise(0.01, n=len(y_res))
+rp1 = array(map(lambda y: y.rp1, y_res)) + noise(0.0001, n=len(y_res))
+rp2 = array(map(lambda y: y.rp2, y_res)) + noise(0.0001, n=len(y_res))
+rp3 = array(map(lambda y: y.rp3, y_res)) + noise(0.0001, n=len(y_res))
+vrp1 = array(map(lambda y: y.vrp1, y_res)) + noise(0.0001, n=len(y_res))
+vrp2 = array(map(lambda y: y.vrp2, y_res)) + noise(0.0001, n=len(y_res))
+vrp3 = array(map(lambda y: y.vrp3, y_res)) + noise(0.0001, n=len(y_res))
 fext = array(map(lambda y: y.Fext, y_res))
 d = fext.T[0]
 sf = fext.T[1]
@@ -216,7 +220,7 @@ drud = array(map(lambda y: y.drud, y_res))
  
 zplt.plot(t, z)
 zplt.set_ylabel('depth (m)')
-zplt.set_ylim([65, 0])
+zplt.set_ylim([max(z), min(z)])
 
 xplt.plot(t, x)
 xplt.set_ylabel('x (m)')
