@@ -33,8 +33,8 @@ Mf3 = 70.0
 Mf = array([[Mf1, 0.0, 0.0],
             [0.0, Mf2, 0.0],
             [0.0, 0.0, Mf3]])
-rb0 = array([0.0, 0.0, 0.0 ])
-rw0 = array([0.0, 0.0, 0.02 ])
+rb0 = array([0.10, 0.0, 0.0 ])
+rw0 = array([0.0, 0.0, 0.05 ])
 
 KL0 = 0.0
 KL = 132.5
@@ -44,6 +44,8 @@ KSF0 = 0.0
 KSF = -90.0
 KT = 0.0
 KMT = 0.0
+l = 0.5
+V0 = 0.3
 
 KM = array([-100.0, -100.0, -100.0])
 KR = 1.0
@@ -58,6 +60,8 @@ KOmega2 = array([[   -50.0,      0.0,      0.0],
 
 current_velocity = array([0.0, 0.0, 0.0])
 
+rp3 = 0.05
+
 down_glide = True
 
 model = GliderModelFull(intertia_matrix = J,
@@ -68,6 +72,7 @@ model = GliderModelFull(intertia_matrix = J,
                         balance_mass = Mw,
                         balance_mass_position = rw0,
                         ballast_mass_position = rb0,
+                        point_mass_z_offset = rp3,
                         lift_coeff = KL,
                         drag_coeff0 = KD0,
                         drag_coeff = KD,
@@ -80,13 +85,18 @@ model = GliderModelFull(intertia_matrix = J,
                         throttle_momentum_coeff = KMT,
                         damping_matrix_linear = KOmega1,
                         damping_matrix_quadratic = KOmega2,
-                        current_velocity = current_velocity)
+                        current_velocity = current_velocity,
+                        specific_length = l,
+                        nominal_velocity = V0)
+
+angle = -25 * (pi/180)
+V = 0.3
                        
-orientation = array([0.0 * (pi/180), 0.0 * (pi/180), 0.0])
+orientation = array([0.0 * (pi/180), (angle + model.get_steady_alpha(V, angle)), 0.0])
 position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
-linear_velocity = array([0.0, 0.00, 0.0])
-point_mass_position = array([0.0198, 0.00, 0.05])
+linear_velocity = array([model.get_steady_v1(V, angle), 0.00, model.get_steady_v3(V, angle)])
+point_mass_position = array([model.get_steady_rp1(V, angle), 0.00])
 point_mass_velocity = array([0.0, 0.0, 0.0])
 ballast_mass = 1.047
 tmax = float(sys.argv[1])
@@ -94,6 +104,13 @@ if len(sys.argv) > 2:
     dt = float(sys.argv[2])
 else:
     dt = 0.1
+
+print "theta = %5.2f\nalpha = %5.2f\nv1 = %7.5f\nv3 = %7.5f\nrp1 = %7.5f\nmb = %7.5f" % ((angle + model.get_steady_alpha(V, angle)) / (pi/180),
+                                                                                         model.get_steady_alpha(V, angle) / (pi/180),
+                                                                                         model.get_steady_v1(V, angle),
+                                                                                         model.get_steady_v3(V, angle),
+                                                                                         model.get_steady_rp1(V, angle),
+                                                                                         model.get_steady_mb(V, angle))
 
 model.set_initial_values(0,
                          orientation = orientation,
@@ -105,7 +122,7 @@ model.set_initial_values(0,
                          ballast_mass = 1.0)#ballast_mass)
 
 def noise(omega, alpha=0.0, n=1):
-    return np.random.normal(loc=alpha, scale=omega, size=n)
+    return zeros(n)#np.random.normal(loc=alpha, scale=omega, size=n)
 
 
 def get_controls(glider_step):

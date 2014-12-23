@@ -195,6 +195,7 @@ class GliderModelFull:
                  balance_mass,
                  balance_mass_position,
                  ballast_mass_position,
+                 point_mass_z_offset,
                  lift_coeff,
                  drag_coeff0,
                  drag_coeff,
@@ -207,7 +208,9 @@ class GliderModelFull:
                  throttle_momentum_coeff,
                  damping_matrix_linear,
                  damping_matrix_quadratic,
-                 current_velocity):
+                 current_velocity,
+                 specific_length,
+                 nominal_velocity):
         self.J = intertia_matrix
         J = self.J
         self.Jinv = inv(J)
@@ -228,6 +231,8 @@ class GliderModelFull:
         rw0 = self.rw0 
         self.rb0 = ballast_mass_position
         rb0 = self.rb0 
+        self.rp3 = point_mass_z_offset
+        rp3 = self.rp3
         self.KL = lift_coeff
         KL = self.KL 
         self.KD0 = drag_coeff0
@@ -254,6 +259,10 @@ class GliderModelFull:
         KOmega2 = self.KOmega2 
         self.vc = current_velocity
         vc = self.vc
+        self.l = specific_length
+        l = self.l
+        self.V0 = nominal_velocity
+        V0 = self.V0
 
         def f_hydro(Vsq, alpha, beta, drud):
             D = (KD0 + KD*alpha*alpha)*Vsq
@@ -494,7 +503,7 @@ class GliderModelFull:
                          position[0],            position[1],            position[2],
                  angular_velocity[0],    angular_velocity[1],    angular_velocity[2],
                   linear_velocity[0],     linear_velocity[1],     linear_velocity[2],
-              point_mass_position[0], point_mass_position[1], point_mass_position[2],
+              point_mass_position[0], point_mass_position[1],               self.rp3,
                          self.rb0[0],            self.rb0[1],            self.rb0[2],
                          self.rw0[0],            self.rw0[1],            self.rw0[2],
               point_mass_velocity[0], point_mass_velocity[1], point_mass_velocity[2],
@@ -525,3 +534,46 @@ class GliderModelFull:
 
     def set_current(self, current_velocity):
         self.vc = current_velocity
+
+    def get_min_angle(self):
+        return atan(2*self.KD/self.KL*sqrt(self.KD0/self.KD))
+        
+    def get_steady_v1(self, velocity, angle):
+        return velocity*cos(self.get_steady_alpha(velocity, angle))
+    def get_steady_v3(self, velocity, angle):
+        return velocity*sin(self.get_steady_alpha(velocity, angle))
+    def get_steady_rp1(self, velocity, angle):
+        theta = angle + self.get_steady_alpha(velocity, angle)
+        mb = self.get_steady_mb(velocity, angle)
+        alpha = self.get_steady_alpha(velocity, angle)
+        v1 = self.get_steady_v1(velocity, angle)
+        v3 = self.get_steady_v3(velocity, angle)
+        print self.KM[1]*alpha*velocity*velocity
+        print -self.rp3*tan(theta)
+        print (self.M[2,2] - self.M[0,0]) / (self.Mp*G*cos(theta))
+        return (-self.rp3*tan(theta) + 1.0/(self.Mp*G*cos(theta))*
+                ((self.M[2,2] - self.M[0,0])*v1*v3 -
+                 self.Mw*G*(self.rw0[0]*cos(theta) + self.rw0[2]*sin(theta)) -
+                 mb*G*(self.rb0[0]*cos(theta) + self.rb0[2]*sin(theta)) +
+                 self.KM[1]*alpha*velocity*velocity))
+    def get_steady_alpha(self, velocity, angle):
+        tan_angle = tan(angle)
+        return 0.5*(self.KL/self.KD*tan_angle*
+                    (-1 + sqrt(1-4*self.KD*self.KD0/
+                               (self.KL*self.KL*tan_angle*tan_angle))))
+    def get_steady_mb(self, velocity, angle):
+        alpha = self.get_steady_alpha(velocity, angle)
+        return ((self.Mfull - self.Mh - self.Mp - self.Mw) +
+                1.0/G*(-sin(angle)*(self.KD0+self.KD*alpha*alpha) +
+                       cos(angle)*self.KL*alpha)*velocity*velocity)
+
+#    Not today
+#    def get_turn_rp2(self, velocity, angle, turn, drud):
+#        pass
+#    def get_turn_beta(self, velocity, angle, turn, drud):
+#        T = self.l/self.V0
+#        velocity = velocity / self.V0
+#        delta = (rho*S)**2 * 
+#        pass
+#    def get_turn_phi(self, velocity, angle, turn, drud):
+#        pass
