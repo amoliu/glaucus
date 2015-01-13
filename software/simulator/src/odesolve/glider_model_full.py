@@ -543,9 +543,9 @@ class GliderModelFull:
     def get_steady_v3(self, velocity, angle):
         return velocity*sin(self.get_steady_alpha(velocity, angle))
     def get_steady_rp1(self, velocity, angle):
-        theta = angle + self.get_steady_alpha(velocity, angle)
-        mb = self.get_steady_mb(velocity, angle)
         alpha = self.get_steady_alpha(velocity, angle)
+        theta = angle + alpha
+        mb = self.get_steady_mb(velocity, angle)
         v1 = self.get_steady_v1(velocity, angle)
         v3 = self.get_steady_v3(velocity, angle)
         print self.KM[1]*alpha*velocity*velocity
