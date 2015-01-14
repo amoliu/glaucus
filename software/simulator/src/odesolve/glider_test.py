@@ -121,8 +121,8 @@ model.set_initial_values(0,
                          point_mass_velocity = point_mass_velocity,
                          ballast_mass = 1.0)#ballast_mass)
 
-def noise(omega, alpha=0.0, n=1):
-    return zeros(n)#np.random.normal(loc=alpha, scale=omega, size=n)
+def noise(sd, mean=0.0, n=1):
+    return np.random.normal(loc=mean, scale=sd, size=n)
 
 
 def get_controls(glider_step):
@@ -160,8 +160,33 @@ def W(glider_step):
 y_res = []
 t = []
 
+gyro_gain = 131
+accel_gain = 16384
+G = 9.80665
+
+def bound(val, mi, ma):
+    return min(ma, max(mi, val))
+
+gyro_bias = array([40.0*random() - 20.0,
+                   40.0*random() - 20.0,
+                   40.0*random() - 20.0])
+
+accel_bias = array([0.1*random() - 0.05,
+                    0.1*random() - 0.05,
+                    0.16*random() - 0.08])
+
 while model.successful() and (tmax - model.t) > dt/2:
     y = model.next(0.1)
+    y.gyro = array([bound(int((y.omega[0]/(pi/180) + noise(sd=0.005, mean=gyro_bias[0]))*gyro_gain), -32768, 32767),
+                    bound(int((y.omega[1]/(pi/180) + noise(sd=0.005, mean=gyro_bias[1]))*gyro_gain), -32768, 32767),
+                    bound(int((y.omega[2]/(pi/180) + noise(sd=0.005, mean=gyro_bias[2]))*gyro_gain), -32768, 32767)])
+    g_vec = dot(transpose(y.R), array([0, 0, 1]))
+    Fm = cross(dot(model.M, y.v) + y.pp + y.pb + y.pw, y.omega) + y.Fnet + y.Fext
+    FF = Fm - y.up - (y.ub + y.uw)
+    a = dot(model.Minv, FF)/G + g_vec
+    y.accel = array([bound(int((a[0] + noise(sd=0.0004, mean=accel_bias[0]))*accel_gain), -32768, 32767),
+                     bound(int((a[1] + noise(sd=0.0004, mean=accel_bias[1]))*accel_gain), -32768, 32767),
+                     bound(int((a[2] + noise(sd=0.0004, mean=accel_bias[2]))*accel_gain), -32768, 32767)])
     (wp, u4, ut, drud) = W(y)
     model.set_controls(point_mass_accels = wp,
                        ballast_mass_change = u4,
@@ -188,33 +213,35 @@ fig, (xplt, yplt, zplt,
       up1plt, up2plt, up3plt,
       mbplt, m0plt,
       wp1plt, wp2plt, u4plt,
-      ftplt, mtplt, drudplt) = plt.subplots(42,1)
+      ftplt, mtplt, drudplt,
+      gyro1plt, gyro2plt, gyro3plt,
+      accel1plt, accel2plt, accel3plt) = plt.subplots(48,1)
 
-z = array(map(lambda y: y.z, y_res)) + noise(0.01, n=len(y_res))
-x = array(map(lambda y: y.x, y_res)) + noise(0.01, n=len(y_res))
-y = array(map(lambda y: y.y, y_res)) + noise(0.01, n=len(y_res))
-phi = array(map(lambda y: y.phi, y_res)) + noise(0.0001, n=len(y_res))
-theta = array(map(lambda y: y.theta, y_res)) + noise(0.01, n=len(y_res))
-psi = array(map(lambda y: y.psi, y_res)) + noise(0.0001, n=len(y_res))
-omega1 = array(map(lambda y: y.omega1, y_res)) + noise(0.0001, n=len(y_res))
-omega2 = array(map(lambda y: y.omega2, y_res)) + noise(0.0001, n=len(y_res))
-omega3 = array(map(lambda y: y.omega3, y_res)) + noise(0.0001, n=len(y_res))
-v1 = array(map(lambda y: y.v1, y_res)) + noise(0.01, n=len(y_res))
-v2 = array(map(lambda y: y.v2, y_res)) + noise(0.01, n=len(y_res))
-v3 = array(map(lambda y: y.v3, y_res)) + noise(0.01, n=len(y_res))
+z = array(map(lambda y: y.z, y_res))
+x = array(map(lambda y: y.x, y_res))
+y = array(map(lambda y: y.y, y_res))
+phi = array(map(lambda y: y.phi, y_res))
+theta = array(map(lambda y: y.theta, y_res))
+psi = array(map(lambda y: y.psi, y_res))
+omega1 = array(map(lambda y: y.omega1, y_res))
+omega2 = array(map(lambda y: y.omega2, y_res))
+omega3 = array(map(lambda y: y.omega3, y_res))
+v1 = array(map(lambda y: y.v1, y_res))
+v2 = array(map(lambda y: y.v2, y_res))
+v3 = array(map(lambda y: y.v3, y_res))
 V = sqrt(v1*v1 + v2*v2 + v3*v3)
-vreal1 = array(map(lambda y: y.vreal[0], y_res)) + noise(0.01, n=len(y_res))
-vreal2 = array(map(lambda y: y.vreal[1], y_res)) + noise(0.01, n=len(y_res))
-vreal3 = array(map(lambda y: y.vreal[2], y_res)) + noise(0.01, n=len(y_res))
+vreal1 = array(map(lambda y: y.vreal[0], y_res))
+vreal2 = array(map(lambda y: y.vreal[1], y_res))
+vreal3 = array(map(lambda y: y.vreal[2], y_res))
 Vreal = sqrt(vreal1*vreal1 + vreal2*vreal2 + vreal3*vreal3)
-alpha = array(map(lambda y: y.alpha, y_res)) + noise(0.01, n=len(y_res))
-beta = array(map(lambda y: y.beta, y_res)) + noise(0.01, n=len(y_res))
-rp1 = array(map(lambda y: y.rp1, y_res)) + noise(0.0001, n=len(y_res))
-rp2 = array(map(lambda y: y.rp2, y_res)) + noise(0.0001, n=len(y_res))
-rp3 = array(map(lambda y: y.rp3, y_res)) + noise(0.0001, n=len(y_res))
-vrp1 = array(map(lambda y: y.vrp1, y_res)) + noise(0.0001, n=len(y_res))
-vrp2 = array(map(lambda y: y.vrp2, y_res)) + noise(0.0001, n=len(y_res))
-vrp3 = array(map(lambda y: y.vrp3, y_res)) + noise(0.0001, n=len(y_res))
+alpha = array(map(lambda y: y.alpha, y_res))
+beta = array(map(lambda y: y.beta, y_res))
+rp1 = array(map(lambda y: y.rp1, y_res))
+rp2 = array(map(lambda y: y.rp2, y_res))
+rp3 = array(map(lambda y: y.rp3, y_res))
+vrp1 = array(map(lambda y: y.vrp1, y_res))
+vrp2 = array(map(lambda y: y.vrp2, y_res))
+vrp3 = array(map(lambda y: y.vrp3, y_res))
 fext = array(map(lambda y: y.Fext, y_res))
 d = fext.T[0]
 sf = fext.T[1]
@@ -234,6 +261,12 @@ u4 = array(map(lambda y: y.u4, y_res))
 ft = array(map(lambda y: y.FT, y_res))
 mt = array(map(lambda y: y.MT, y_res))
 drud = array(map(lambda y: y.drud, y_res))
+gyro1 = array(map(lambda y: y.gyro[0], y_res))
+gyro2 = array(map(lambda y: y.gyro[1], y_res))
+gyro3 = array(map(lambda y: y.gyro[2], y_res))
+accel1 = array(map(lambda y: y.accel[0], y_res))
+accel2 = array(map(lambda y: y.accel[1], y_res))
+accel3 = array(map(lambda y: y.accel[2], y_res))
  
 zplt.plot(t, z)
 zplt.set_ylabel('depth (m)')
@@ -361,6 +394,24 @@ mtplt.set_ylabel('$M_{T} (N*m)$')
 
 drudplt.plot(t, drud / (pi / 180))
 drudplt.set_ylabel('$\delta{r} (^{\circ})$')
+
+gyro1plt.plot(t, gyro1)
+gyro1plt.set_ylabel('$gyro_x$')
+
+gyro2plt.plot(t, gyro2)
+gyro2plt.set_ylabel('$gyro_y$')
+
+gyro3plt.plot(t, gyro3)
+gyro3plt.set_ylabel('$gyro_z$')
+
+accel1plt.plot(t, accel1)
+accel1plt.set_ylabel('$accel_x$')
+
+accel2plt.plot(t, accel2)
+accel2plt.set_ylabel('$accel_y$')
+
+accel3plt.plot(t, accel3)
+accel3plt.set_ylabel('$accel_z$')
 
 plt.savefig('glider_full.png', bbox_inches='tight')
 
