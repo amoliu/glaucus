@@ -106,8 +106,29 @@ class GliderModelFullStep:
         f_hydro = glider_model.f_hydro
         m_hydro = glider_model.m_hydro
         self.M0 = self.mb + glider_model.Mh + glider_model.Mp + glider_model.Mw - glider_model.Mfull
-        self.Fext = dot(self.RWB, f_hydro(self.Vsq, self.alpha, self.beta, glider_model.drud)) + array([glider_model.ut, 0, 0])
-        self.Text = dot(self.RWB, m_hydro(self.Vsq, self.alpha, self.beta, self.omega, glider_model.drud))
+        self.Fext = dot(self.RWB, f_hydro(self.Vsq, self.alpha, self.beta, glider_model.drud, glider_model.da, glider_model.de))
+        self.Text = dot(self.RWB, m_hydro(self.Vsq, self.alpha, self.beta, self.omega, glider_model.drud, glider_model.da, glider_model.de))
+        for i in range(len(glider_model.motors)):
+            rmotor = glider_model.motors[i][0]
+            direction = glider_model.motors[i][1]
+            KT = glider_model.motors[i][2]
+            KMT = glider_model.motors[i][3]
+            a2 = rmotor - dot(rmotor, direction)*direction
+            torque = direction*KMT*glider_model.ut[i]
+            force = direction*KT*glider_model.ut[i]
+            if norm(a2) > 0.0001:
+                torque_force = dot(hat(a2), torque)
+                if norm(torque_force) > 0.0001:
+                    torque_force /= norm(torque_force)
+                    torque_force *= torque / norm(a2)
+                else:
+                    torque_force = array([0.0, 0.0, 0.0])
+            else:
+                torque_force = array([0.0, 0.0, 0.0])
+            force_torque = dot(hat(rmotor), force)
+            self.Fext += force + torque_force
+            self.Text += torque + force_torque
+
         F11 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rp)) + 1.0/glider_model.Mp*identity(3)
         F12 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rb))
         F13 = glider_model.Minv - dot(dot(hat(self.rp), glider_model.Jinv), hat(self.rw))
@@ -175,10 +196,12 @@ class GliderModelFullStep:
         self.wb = glider_model.wb
         self.ww = glider_model.ww
         self.u4 = glider_model.u4
-        self.ut = glider_model.ut
-        self.FT = glider_model.KT * glider_model.ut
-        self.MT = glider_model.KMT * glider_model.ut
+#        self.ut = glider_model.ut
+#        self.FT = glider_model.KT * glider_model.ut
+#        self.MT = glider_model.KMT * glider_model.ut
         self.drud = glider_model.drud
+        self.da = glider_model.da
+        self.de = glider_model.de
 
         self.Tup = dot(hat(self.rp), self.up)
         self.Tub = dot(hat(self.rb), self.ub)
@@ -196,16 +219,23 @@ class GliderModelFull:
                  balance_mass_position,
                  ballast_mass_position,
                  point_mass_z_offset,
+                 lift_coeff0,
                  lift_coeff,
                  drag_coeff0,
                  drag_coeff,
                  sideforce_coeff0,
                  sideforce_coeff,
-                 rudder_sideforce_coeff,
+                 viscous_momentum_coeffs0,
                  viscous_momentum_coeffs,
+                 aelerons_momentum_coeffs,
+                 elevator_liftforce_coeff,
+                 elevator_momentum_coeffs,
+                 rudder_sideforce_coeff,
                  rudder_momentum_coeffs,
-                 throttle_coeff,
-                 throttle_momentum_coeff,
+                 rudder_drag_coeff,
+                 elevator_drag_coeff,
+                 aelerons_drag_coeff,
+                 motors,
                  damping_matrix_linear,
                  damping_matrix_quadratic,
                  current_velocity,
@@ -233,6 +263,8 @@ class GliderModelFull:
         rb0 = self.rb0 
         self.rp3 = point_mass_z_offset
         rp3 = self.rp3
+        self.KL0 = lift_coeff0
+        KL0 = self.KL0
         self.KL = lift_coeff
         KL = self.KL 
         self.KD0 = drag_coeff0
@@ -243,16 +275,26 @@ class GliderModelFull:
         KSF0 = self.KSF0 
         self.KSF = sideforce_coeff
         KSF = self.KSF 
+        self.KDA = aelerons_drag_coeff
+        KDA = self.KDA
+        self.KDR = rudder_drag_coeff
+        KDR = self.KDR
+        self.KDE = elevator_drag_coeff
+        KDE = self.KDE
         self.KR = rudder_sideforce_coeff
         KR = self.KR
+        self.KLE = elevator_liftforce_coeff
+        KLE = self.KLE
+        self.KM0 = viscous_momentum_coeffs0
+        KM0 = self.KM0
         self.KM = viscous_momentum_coeffs
         KM = self.KM 
         self.KMR = rudder_momentum_coeffs
         KMR = self.KMR
-        self.KT = throttle_coeff
-        KT = self.KT
-        self.KMT = throttle_momentum_coeff
-        KMT = self.KMT
+        self.KMA = aelerons_momentum_coeffs
+        KMA = self.KMA
+        self.KME = elevator_momentum_coeffs
+        KME = self.KME
         self.KOmega1 = damping_matrix_linear
         KOmega1 = self.KOmega1 
         self.KOmega2 = damping_matrix_quadratic
@@ -263,17 +305,19 @@ class GliderModelFull:
         l = self.l
         self.V0 = nominal_velocity
         V0 = self.V0
+        self.motors = motors
 
-        def f_hydro(Vsq, alpha, beta, drud):
-            D = (KD0 + KD*alpha*alpha)*Vsq
+        def f_hydro(Vsq, alpha, beta, drud, da, de):
+            D = (KD0 + KD*alpha*alpha + KDR*drud + KDE*de + KDA*da)*Vsq
             SF = (KSF0 + KSF*beta + KR*drud)*Vsq
-            L = (KL*alpha)*Vsq
+            L = (KL0 + KL*alpha + KLE*de)*Vsq
             return array([-D, SF, -L])
 
         self.f_hydro = f_hydro
 
-        def m_hydro(Vsq, alpha, beta, omega, drud):
-            return (KM*array([beta, alpha, beta] + KMR*array([drud, 0, drud]))*Vsq +
+        def m_hydro(Vsq, alpha, beta, omega, drud, da, de):
+            return (KM0 + KM*array([beta, alpha, beta] + KMR*array([drud, 0, drud]) +
+                          KME*array([0, de, 0]) + KMA*array([da, 0, da]))*Vsq +
                     dot(KOmega1, omega) +
                     dot(KOmega2, omega*omega))
 
@@ -284,7 +328,9 @@ class GliderModelFull:
         self.ww = array([0.0, 0.0, 0.0])
         self.u4 = 0
         self.drud = 0
-        self.ut = 0
+        self.da = 0
+        self.de = 0
+        self.ut = zeros(len(motors))
 
         def get_controls(self):
             return [self.wp,
@@ -292,7 +338,9 @@ class GliderModelFull:
                     self.ww,
                     self.u4,
                     self.ut,
-                    self.drud]
+                    self.drud,
+                    self.da,
+                    self.de]
 
         def get_vc(self):
             return self.vc
@@ -381,9 +429,29 @@ class GliderModelFull:
             vrw = array([vrw1, vrw2, vrw3])
 
             M0 = mb + Mh + Mp + Mw - Mfull
-            [wp, wb, ww, u4, ut, drud] = get_controls(self)
-            Fext = dot(RWB, f_hydro(Vsq, alpha, beta, drud)) + KT*array([ut, 0, 0])
-            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega, drud)) + KMT*array([ut, 0, 0])
+            [wp, wb, ww, u4, ut, drud, da, de] = get_controls(self)
+            Fext = dot(RWB, f_hydro(Vsq, alpha, beta, drud, da, de))
+            Text = dot(RWB, m_hydro(Vsq, alpha, beta, omega, drud, da, de))
+            for i in range(len(motors)):
+                rmotor = motors[i][0]
+                direction = motors[i][1]
+                KT = motors[i][2]
+                KMT = motors[i][3]
+                a2 = rmotor - dot(rmotor, direction)*direction
+                torque = direction*KMT*ut[i]
+                force = direction*KT*ut[i]
+                if norm(a2) > 0.0001:
+                    torque_force = dot(hat(a2), torque)
+                    if norm(torque_force) > 0.0001:
+                        torque_force /= norm(torque_force)
+                        torque_force *= torque / norm(a2)
+                    else:
+                        torque_force = array([0.0, 0.0, 0.0])
+                else:
+                    torque_force = array([0.0, 0.0, 0.0])
+                force_torque = dot(hat(rmotor), force)
+                Fext += force + torque_force
+                Text += torque + force_torque
 
             vc = get_vc(self)
 
@@ -524,13 +592,15 @@ class GliderModelFull:
     def successful(self):
         return self.solver.successful()
 
-    def set_controls(self, point_mass_accels, ballast_mass_change, thrust, rudder_angle):
+    def set_controls(self, point_mass_accels, ballast_mass_change, thrust, rudder_angle, aelerons_angle, elevator_angle):
         self.wp = point_mass_accels
         self.u4 = ballast_mass_change
         self.wb = array([0,0,0])
         self.ww = array([0,0,0])
         self.ut = thrust
         self.drud = rudder_angle
+        self.da = aelerons_angle
+        self.de = elevator_angle
 
     def set_current(self, current_velocity):
         self.vc = current_velocity
@@ -548,9 +618,6 @@ class GliderModelFull:
         mb = self.get_steady_mb(velocity, angle)
         v1 = self.get_steady_v1(velocity, angle)
         v3 = self.get_steady_v3(velocity, angle)
-        print self.KM[1]*alpha*velocity*velocity
-        print -self.rp3*tan(theta)
-        print (self.M[2,2] - self.M[0,0]) / (self.Mp*G*cos(theta))
         return (-self.rp3*tan(theta) + 1.0/(self.Mp*G*cos(theta))*
                 ((self.M[2,2] - self.M[0,0])*v1*v3 -
                  self.Mw*G*(self.rw0[0]*cos(theta) + self.rw0[2]*sin(theta)) -

@@ -33,8 +33,8 @@ Mf3 = 70.0
 Mf = array([[Mf1, 0.0, 0.0],
             [0.0, Mf2, 0.0],
             [0.0, 0.0, Mf3]])
-rb0 = array([0.10, 0.0, 0.0 ])
-rw0 = array([0.0, 0.0, 0.05 ])
+rb0 = array([0.0, 0.0, 0.0 ])
+rw0 = array([0.0, 0.0, 0.00 ])
 
 KL0 = 0.0
 KL = 132.5
@@ -42,14 +42,20 @@ KD0 = 2.15
 KD = 25.0
 KSF0 = 0.0
 KSF = -90.0
-KT = 0.0
-KMT = 0.0
 l = 0.5
 V0 = 0.3
 
 KM = array([-100.0, -100.0, -100.0])
+KM0 = array([0.0, 0.0, 0.0])
 KR = 1.0
+KLE = 0.0
 KMR = array([1.0, 0.0, 1.0])
+KME = array([0.0, 0.0, 0.0])
+KMA = array([0.0, 0.0, 0.0])
+
+KDR = 0.0
+KDE = 0.0
+KDA = 0.0
 
 KOmega1 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
@@ -58,11 +64,15 @@ KOmega2 = array([[   -50.0,      0.0,      0.0],
                  [     0.0,    -50.0,      0.0],
                  [     0.0,      0.0,    -50.0]])
 
+motors = [(array([-0.0,  0.0,  0.0]), array([1.0,  0,  0]), 5.0,  0.0)]
+
 current_velocity = array([0.0, 0.0, 0.0])
 
-rp3 = 0.05
+rp3 = 0.00
 
 down_glide = True
+top_depth = 10
+bottom_depth = 20
 
 model = GliderModelFull(intertia_matrix = J,
                         added_masses = Mf,
@@ -73,16 +83,23 @@ model = GliderModelFull(intertia_matrix = J,
                         balance_mass_position = rw0,
                         ballast_mass_position = rb0,
                         point_mass_z_offset = rp3,
+                        lift_coeff0 = KL0,
                         lift_coeff = KL,
                         drag_coeff0 = KD0,
                         drag_coeff = KD,
                         sideforce_coeff0 = KSF0,
                         sideforce_coeff = KSF,
                         rudder_sideforce_coeff = KR,
-                        viscous_momentum_coeffs = KM,
                         rudder_momentum_coeffs = KMR,
-                        throttle_coeff = KT,
-                        throttle_momentum_coeff = KMT,
+                        elevator_liftforce_coeff = KLE,
+                        elevator_momentum_coeffs = KME,
+                        aelerons_momentum_coeffs = KMA,
+                        rudder_drag_coeff = KDR,
+                        elevator_drag_coeff = KDE,
+                        aelerons_drag_coeff = KDA,
+                        viscous_momentum_coeffs0 = KM0,
+                        viscous_momentum_coeffs = KM,
+                        motors = motors,
                         damping_matrix_linear = KOmega1,
                         damping_matrix_quadratic = KOmega2,
                         current_velocity = current_velocity,
@@ -92,13 +109,14 @@ model = GliderModelFull(intertia_matrix = J,
 angle = -25 * (pi/180)
 V = 0.3
                        
-orientation = array([0.0 * (pi/180), (angle + model.get_steady_alpha(V, angle)), 0.0])
+orientation = array([0.0, 0.0, 0.0])#array([0.0 * (pi/180), (angle + model.get_steady_alpha(V, angle)), 0.0])
 position = array([0.0, 0.0, 0.0])
 angular_velocity = array([0.0, 0.0, 0.0])
-linear_velocity = array([model.get_steady_v1(V, angle), 0.00, model.get_steady_v3(V, angle)])
-point_mass_position = array([model.get_steady_rp1(V, angle), 0.00])
+linear_velocity = array([0.0, 0.0, 0.0])#array([model.get_steady_v1(V, angle), 0.00, model.get_steady_v3(V, angle)])
+point_mass_position = array([0.0, 0.0, 0.0])#array([model.get_steady_rp1(V, angle), 0.00])
 point_mass_velocity = array([0.0, 0.0, 0.0])
-ballast_mass = 1.047
+ballast_mass_down = 1.0# 1.047
+ballast_mass_up = 1.0#0.953
 tmax = float(sys.argv[1])
 if len(sys.argv) > 2:
     dt = float(sys.argv[2])
@@ -126,9 +144,19 @@ def noise(sd, mean=0.0, n=1):
 
 
 def get_controls(glider_step):
-    rp1_err = glider_step.rp1 - point_mass_position[0]
-    rp2_err = glider_step.rp2 - point_mass_position[1]
-    mb_err = glider_step.mb - ballast_mass
+    global down_glide
+    if (glider_step.z > bottom_depth and down_glide) or (glider_step.z < top_depth and not down_glide):
+        down_glide = not down_glide
+        
+    if down_glide:
+        mb_err = glider_step.mb - ballast_mass_down
+        rp1_err = glider_step.rp1 - point_mass_position[0]
+        rp2_err = glider_step.rp2 - point_mass_position[1]
+    else:
+        mb_err = glider_step.mb - ballast_mass_up
+        rp1_err = glider_step.rp1 + point_mass_position[0]
+        rp2_err = glider_step.rp2 + point_mass_position[1]
+
     if rp1_err != 0 and abs(rp1_err) > 0.001:
         pv1 = -rp1_err/abs(rp1_err)*0.02
     else:
@@ -142,20 +170,22 @@ def get_controls(glider_step):
     else:
         mb = 0
 
-    return (pv1, pv2, mb, 0.0, 0.0)
+    return (pv1, pv2, mb, [0.2, 0.2], 0.0, 0.0, 0.0)
 
 def W(glider_step):
     kfri = 10
 
-    (pv1, pv2, mb, throttle, rudder_vel) = get_controls(glider_step)
+    (pv1, pv2, mb, throttle, rudder_vel, aelerons_vel, elevator_vel) = get_controls(glider_step)
 
     w1 = pv1 - kfri*glider_step.vrp1 - kfri*glider_step.vrp1*abs(kfri*glider_step.vrp1)
     w2 = pv2 - kfri*glider_step.vrp2 - kfri*glider_step.vrp2*abs(kfri*glider_step.vrp2)
     u4 = mb
     ut = throttle
     drud = glider_step.drud + rudder_vel
+    da = glider_step.da + aelerons_vel
+    de = glider_step.de + elevator_vel
 
-    return (array([w1,w2,0]), u4, ut, drud)
+    return (array([w1,w2,0]), u4, ut, drud, da, de)
 
 y_res = []
 t = []
@@ -187,11 +217,13 @@ while model.successful() and (tmax - model.t) > dt/2:
     y.accel = array([bound(int((a[0] + noise(sd=0.0004, mean=accel_bias[0]))*accel_gain), -32768, 32767),
                      bound(int((a[1] + noise(sd=0.0004, mean=accel_bias[1]))*accel_gain), -32768, 32767),
                      bound(int((a[2] + noise(sd=0.0004, mean=accel_bias[2]))*accel_gain), -32768, 32767)])
-    (wp, u4, ut, drud) = W(y)
+    (wp, u4, ut, drud, da, de) = W(y)
     model.set_controls(point_mass_accels = wp,
                        ballast_mass_change = u4,
                        thrust = ut,
-                       rudder_angle = drud)
+                       rudder_angle = drud,
+                       aelerons_angle = da,
+                       elevator_angle = de)
 
     y_res += [y]
     t += [model.t]
@@ -258,8 +290,8 @@ m0 = array(map(lambda y: y.M0, y_res))
 wp1 = array(map(lambda y: y.wp[0], y_res))
 wp2 = array(map(lambda y: y.wp[1], y_res))
 u4 = array(map(lambda y: y.u4, y_res))
-ft = array(map(lambda y: y.FT, y_res))
-mt = array(map(lambda y: y.MT, y_res))
+#ft = array(map(lambda y: y.FT, y_res))
+#mt = array(map(lambda y: y.MT, y_res))
 drud = array(map(lambda y: y.drud, y_res))
 gyro1 = array(map(lambda y: y.gyro[0], y_res))
 gyro2 = array(map(lambda y: y.gyro[1], y_res))
@@ -386,11 +418,11 @@ wp2plt.set_ylabel('$w_{p2} (m/s^2)$')
 u4plt.plot(t, u4)
 u4plt.set_ylabel('$u_{4} (kg/s)$')
 
-ftplt.plot(t, ft)
-ftplt.set_ylabel('$F_{T} (N)$')
+#ftplt.plot(t, ft)
+#ftplt.set_ylabel('$F_{T} (N)$')
 
-mtplt.plot(t, mt)
-mtplt.set_ylabel('$M_{T} (N*m)$')
+#mtplt.plot(t, mt)
+#mtplt.set_ylabel('$M_{T} (N*m)$')
 
 drudplt.plot(t, drud / (pi / 180))
 drudplt.set_ylabel('$\delta{r} (^{\circ})$')
